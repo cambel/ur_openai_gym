@@ -5,7 +5,7 @@ import datetime
 from ur_gazebo.gazebo_spawner import GazeboModels
 from ur_gazebo.model import Model
 from ur_gazebo.basic_models import PEG_BOARD, BOX
-from ur_control import transformations, conversions
+from ur_control import transformations as tr, conversions
 
 
 def load_param_vars(self, prefix):
@@ -51,11 +51,25 @@ def save_log(obs_logfile, obs_per_step, reward_per_step, cost_ws):
         np.save(obs_logfile, [obs_per_step], allow_pickle=True)
 
 
+def apply_workspace_contraints(target_pose, workspace):
+    """
+        target pose: Array. [x, y, z, ax, ay, az]
+        workspace: Array. [[min_x, max_x], [min_y, max_y], ..., [min_az, max_az]]
+
+        Even if the action space is smaller, define the workspace for every dimension
+    """
+    if len(target_pose) == 7:
+        tpose = np.concatenate([target_pose[:3], tr.euler_from_quaternion(target_pose[3:])])
+        res = np.array([np.clip(target_pose[i], *workspace[i]) for i in range(6)])
+        return np.concatenate([res[:3], tr.quaternion_from_euler(*res[3:])])
+    else:
+        return np.array([np.clip(target_pose[i], *workspace[i]) for i in range(6)])
+
 def randomize_initial_pose(initial_pose, workspace, reset_time):
     rand = np.random.uniform(low=-1.0, high=1.0, size=6)
     rand = np.array([np.interp(rand[i], [-1., 1.], workspace[i]) for i in range(6)])
     rand[3:] = np.deg2rad(rand[3:]) / reset_time  # rough estimation of angular velocity
-    return transformations.pose_from_angular_veloticy(initial_pose, rand, dt=reset_time, ee_rotation=True)
+    return tr.pose_from_angular_veloticy(initial_pose, rand, dt=reset_time, ee_rotation=True)
 
 
 def create_gazebo_marker(pose, reference_frame, marker_id=None):

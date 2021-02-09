@@ -16,7 +16,6 @@ class RobotGazeboEnv(gym.GoalEnv):
         self.controllers_object = ControllersConnection(
             namespace=robot_name_space, controllers_list=controllers_list)
         self.reset_controls = reset_controls
-        print(self.reset_controls)
         self.seed()
 
         # Set up ROS related variables

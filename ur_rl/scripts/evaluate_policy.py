@@ -26,24 +26,24 @@ def load_env(folder, common_test):
     gyv_envs_params = folder + '/ros_gym_env_params.yaml'
     assert os.path.exists(gyv_envs_params)
 
-    rospy.set_param("ur3e_gym/rand_init_interval", 1)
-    load_ros_params(rospackage_name="ur3e_rl",
+    rospy.set_param("ur_gym/rand_init_interval", 1)
+    load_ros_params(rospackage_name="ur_rl",
                     rel_path_from_package_to_file="config",
                     yaml_file_name=gyv_envs_params)
 
     if common_test:
         print("common params")
-        load_ros_params(rospackage_name="ur3e_rl",
+        load_ros_params(rospackage_name="ur_rl",
                         rel_path_from_package_to_file="config",
                         yaml_file_name='test_common_params.yaml')
 
-    steps_per_episode = rospy.get_param("ur3e_gym/steps_per_episode", 200)
+    steps_per_episode = rospy.get_param("ur_gym/steps_per_episode", 200)
 
-    return load_environment(rospy.get_param('ur3e_gym/env_id'),
+    return load_environment(rospy.get_param('ur_gym/env_id'),
                            max_episode_steps=steps_per_episode)
 
 def test_policy(env, policy, num_tests, custom_path=False, training=False):
-    steps_per_episode = rospy.get_param("ur3e_gym/steps_per_episode", 200)
+    steps_per_episode = rospy.get_param("ur_gym/steps_per_episode", 200)
     total_steps = 0
     successes = 0
     avg_steps = 0
@@ -87,16 +87,14 @@ def main():
                     anonymous=True,
                     log_level=rospy.ERROR)
 
-    clear_gym_params('ur3e_gym')
-    clear_gym_params('ur3e_force_control')
-    # rospy.set_param('ur3e_gym/test_mode', True)
+    clear_gym_params('ur_gym')
 
     policy_dir = os.path.join(os. getcwd(), args.poldir)
     assert os.path.exists(policy_dir)
 
     env = load_env(policy_dir, args.common_test)
 
-    actor_class = rospy.get_param("ur3e_gym/actor_class", "default")
+    actor_class = rospy.get_param("ur_gym/actor_class", "default")
 
     policy = SAC(
         state_shape=env.observation_space.shape,
@@ -105,7 +103,7 @@ def main():
         actor_class=actor_class,
         )
 
-    rospy.set_param('ur3e_gym/output_dir', policy_dir)
+    rospy.set_param('ur_gym/output_dir', policy_dir)
     
     checkpoint = tf.train.Checkpoint(policy=policy)
     _latest_path_ckpt = tf.train.latest_checkpoint(policy_dir)

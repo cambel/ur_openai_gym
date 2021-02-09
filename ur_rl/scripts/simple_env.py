@@ -52,8 +52,7 @@ if __name__ == '__main__':
     args = parser.parse_args(rospy.myargv()[1:])
     args = parser.parse_args()
 
-    clear_gym_params('ur3e_gym')
-    clear_gym_params('ur3e_force_control')
+    clear_gym_params('ur_gym')
 
     param_file = None
 
@@ -61,20 +60,20 @@ if __name__ == '__main__':
         param_file = "simulation/task_space.yaml"
     elif args.env_id == 1:
         param_file = "simulation/joint_space.yaml"
-
-        raise Exception("invalid env_id")
+    else:
+        raise Exception("invalid env_id:", args.env_id)
 
     p = utils.TextColors()
     p.error("GYM Environment:{} ".format(param_file))
     
-    load_ros_params(rospackage_name="ur3e_rl",
+    load_ros_params(rospackage_name="ur_rl",
                     rel_path_from_package_to_file="config",
                     yaml_file_name=param_file)
 
     # Init OpenAI_ROS ENV
-    rospy.set_param('ur3e_gym/output_dir', '/root/dev/results')
-    episode_lenght = rospy.get_param("ur3e_gym/steps_per_episode", 100)
-    env = load_environment(rospy.get_param("ur3e_gym/env_id"),
+    rospy.set_param('ur_gym/output_dir', '/root/dev/results')
+    episode_lenght = rospy.get_param("ur_gym/steps_per_episode", 100)
+    env = load_environment(rospy.get_param("ur_gym/env_id"),
                         max_episode_steps=episode_lenght)
     episodes = args.repetitions
     agent = Agent(env.n_actions, args.action_type)

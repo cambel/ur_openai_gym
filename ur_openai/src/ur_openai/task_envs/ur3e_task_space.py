@@ -2,23 +2,23 @@ import datetime
 import rospy
 import numpy as np
 
-from ur_control.constants import ROBOT_GAZEBO, ROBOT_UR_RTDE_DRIVER
-from ur_control import transformations, spalg
-import ur_openai.cost_utils as cost
-
 from gym import spaces
 
+from ur_control.constants import ROBOT_GAZEBO, ROBOT_UR_RTDE_DRIVER
+from ur_control import transformations, spalg
+
+import ur_openai.cost_utils as cost
 from ur_openai.robot_envs import ur_env
-from ur_openai.robot_envs.utils import load_param_vars, save_log, randomize_initial_pose
+from ur_openai.robot_envs.utils import load_param_vars, save_log, randomize_initial_pose, apply_workspace_contraints
 
 
-class UR3eTaskSpaceEnv(ur_env.UR3eEnv):
+class UR3eTaskSpaceEnv(ur_env.UREnv):
     def __init__(self):
 
         self.cost_positive = False
         self.get_robot_params()
 
-        ur_env.UR3eEnv.__init__(self)
+        ur_env.UREnv.__init__(self)
 
         self._previous_joints = None
         self.obs_logfile = None
@@ -42,21 +42,19 @@ class UR3eTaskSpaceEnv(ur_env.UR3eEnv):
                                             dtype='float32')
 
         self.trials = 1
+        self.rate = rospy.Rate(1/self.agent_control_dt)
 
         print("ACTION SPACES TYPE", (self.action_space))
         print("OBSERVATION SPACES TYPE", (self.observation_space))
 
     def get_robot_params(self):
-        prefix = "ur3e_gym"
+        prefix = "ur_gym"
         load_param_vars(self, prefix)
 
         driver_param = rospy.get_param(prefix + "/driver")
         self.driver = ROBOT_GAZEBO
         self.param_use_gazebo = False
-        if driver_param == "old_driver":
-            self.driver = ROBOT_UR_MODERN_DRIVER
-            self.param_use_gazebo = False
-        elif driver_param == "robot":
+        if driver_param == "robot":
             self.driver = ROBOT_UR_RTDE_DRIVER
             self.param_use_gazebo = False
 
@@ -67,47 +65,22 @@ class UR3eTaskSpaceEnv(ur_env.UR3eEnv):
         self.target_pose_uncertain_per_step = rospy.get_param(prefix + "/target_pose_uncertain_per_step", False)
         self.true_target_pose = rospy.get_param(prefix + "/target_pos", False)
         self.rand_seed = rospy.get_param(prefix + "/rand_seed", None)
-        self.ft_hist = rospy.get_param(prefix + "/ft_hist", False)
         self.rand_init_interval = rospy.get_param(prefix + "/rand_init_interval", 5)
         self.rand_init_counter = 0
         self.rand_init_cpose = None
-        self.insertion_direction = rospy.get_param(prefix + "/insertion_direction", 1)
-        self.wrench_hist_size = rospy.get_param(prefix + "/wrench_hist_size", 12)
-        self.randomize_desired_force = rospy.get_param(prefix + "/randomize_desired_force", False)
-        self.test_mode = rospy.get_param(prefix + "/test_mode", False)
 
     def _get_obs(self):
         """
         Here we define what sensor data of our robots observations
-        To know which Variables we have acces to, we need to read the
-        MyRobotEnv API DOCS
         :return: observations
         """
         joint_angles = self.ur3e_arm.joint_angles()
         ee_points, ee_velocities = self.get_points_and_vels(joint_angles)
 
-        obs = None
-
-        desired_force_wrt_goal = -1.0 * spalg.convert_wrench(self.controller.target_force_torque, self.target_pos)
-        if self.ft_hist:
-            force_torque = (self.ur3e_arm.get_ee_wrench_hist(self.wrench_hist_size) - desired_force_wrt_goal) / self.controller.max_force_torque
-
-            obs = np.concatenate([
-                ee_points.ravel(),  # [6]
-                ee_velocities.ravel(),  # [6]
-                desired_force_wrt_goal[:3].ravel(),
-                self.last_actions.ravel(),  # [14]
-                force_torque.ravel(),  # [6]*24
-            ])
-        else:
-            force_torque = (self.ur3e_arm.get_ee_wrench() - desired_force_wrt_goal) / self.controller.max_force_torque
-
-            obs = np.concatenate([
-                ee_points.ravel(),  # [6]
-                ee_velocities.ravel(),  # [6]
-                force_torque.ravel(),  # [6]
-                self.last_actions.ravel(),  # [14]
-            ])
+        obs = np.concatenate([
+            ee_points.ravel(),  # [6]
+            ee_velocities.ravel(),  # [6]
+        ])
 
         return obs.copy()
 
@@ -169,9 +142,6 @@ class UR3eTaskSpaceEnv(ur_env.UR3eEnv):
             self.ur3e_arm.set_joint_positions(position=qc,
                                               wait=True,
                                               t=self.reset_time)
-        self.ur3e_arm.set_wrench_offset(True)
-        self._randomize_desired_force()
-        self.controller.reset()
         self.max_distance = spalg.translation_rotation_error(self.ur3e_arm.end_effector(), self.target_pos) * 1000.
         self.max_dist = None
 
@@ -180,12 +150,6 @@ class UR3eTaskSpaceEnv(ur_env.UR3eEnv):
             self.rand_init_cpose = randomize_initial_pose(self.ur3e_arm.end_effector(self.init_q), self.workspace, self.reset_time)
             self.rand_init_counter = 0
         self.rand_init_counter += 1
-
-    def _randomize_desired_force(self, override=False):
-        if self.randomize_desired_force:
-            desired_force = np.zeros(6)
-            desired_force[2] = np.abs(np.random.normal(scale=self.randomize_desired_force_scale))
-            self.controller.target_force_torque = desired_force
 
     def _add_uncertainty_error(self):
         if self.target_pose_uncertain:
@@ -231,27 +195,13 @@ class UR3eTaskSpaceEnv(ur_env.UR3eEnv):
         """
         Return the reward based on the observations given
         """
-        state = []
-        if self.ft_hist and not self.test_mode:
-            ft_size = self.wrench_hist_size*6
-            state = np.concatenate([
-                observations[:-ft_size].ravel(),
-                observations[-6:].ravel(),
-                [self.action_result]
-            ])
-        else:
-            state = np.concatenate([
-                observations.ravel(),
-                [self.action_result]
-            ])
+        state = observations.ravel()
         self.obs_per_step.append([state])
 
         if self.reward_type == 'sparse':
             return cost.sparse(self, done)
         elif self.reward_type == 'distance':
-            return -1 * cost.distance(self, observations, done)
-        elif self.reward_type == 'force':
-            return cost.distance_force_action_step_goal(self, observations, done)
+            return cost.distance(self, observations, "l1l2")
         else:
             raise AssertionError("Unknown reward function", self.reward_type)
 
@@ -265,12 +215,8 @@ class UR3eTaskSpaceEnv(ur_env.UR3eEnv):
         true_error[:3] *= 1000.0
         true_error[3:] = np.rad2deg(true_error[3:])
         success = np.linalg.norm(true_error[:3], axis=-1) < self.distance_threshold
-        self._log_message = "Final distance: " + str(np.round(true_error, 3)) + (' inserted!' if success else '')
-        return success or self.action_result == FORCE_TORQUE_EXCEEDED
-
-    def goal_distance(self, goal_a, goal_b):
-        assert goal_a.shape == goal_b.shape
-        return np.linalg.norm(goal_a - goal_b, axis=-1)
+        self._log_message = "Final distance: " + str(np.round(true_error, 3)) + (' success!' if success else '')
+        return success
 
     def _init_env_variables(self):
         self.step_count = 0
@@ -278,4 +224,42 @@ class UR3eTaskSpaceEnv(ur_env.UR3eEnv):
         self.last_actions = np.zeros(self.n_actions)
 
     def _set_action(self, action):
-        self.action_result = self.controller.act(action, self.target_pos)
+        assert action.shape == (self.n_actions, )
+        if np.any(np.isnan(action)):
+            rospy.logerr("Invalid NAN action(s)" + str(action))
+            sys.exit()
+        assert np.all(action >= -1.0001) and np.all(action <= 1.0001)
+
+        # ensure that we don't change the action outside of this scope
+        actions = np.copy(action)
+
+        if self.n_actions == 3:
+
+            cmd = self.ur3e_arm.end_effector()
+            cmd[:3] += actions * 0.001
+
+        if self.n_actions == 4:
+
+            cpose = self.ur3e_arm.end_effector()
+
+            delta = actions * 0.001
+            delta = np.concatenate((delta[:3], [0, 0], delta[3:])) # Do not change ax and ay
+
+            # cmd = cpose + delta 
+            cmd = transformations.pose_euler_to_quaternion(cpose, actions)
+            cmd = apply_workspace_contraints(cmd, self.workspace)
+
+
+        if self.n_actions == 6:
+
+            cpose = self.ur3e_arm.end_effector()
+
+            delta = actions * 0.001
+
+            cmd = transformations.pose_euler_to_quaternion(cpose, delta)
+            # print("cmd", cmd)
+            # cmd = apply_workspace_contraints(cmd, self.workspace)
+            # print("cmd2", cmd)
+
+        self.ur3e_arm.set_target_pose_flex(cmd, t=self.agent_control_dt)
+        self.rate.sleep()

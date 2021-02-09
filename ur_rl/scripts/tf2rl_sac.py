@@ -26,7 +26,7 @@ signal.signal(signal.SIGINT, signal_handler)
 if __name__ == '__main__':
 
     parser = Trainer.get_argument()
-    parser.add_argument('--env-id', type=int, help='environment ID', default=None)
+    parser.add_argument('-e', '--env-id', type=int, help='environment ID', default=None)
     parser.set_defaults(batch_size=2048)
     parser.set_defaults(n_warmup=0) # still don't know what it this for
     parser.set_defaults(max_steps=10000) # 10000 for training 200 for evaluation
@@ -45,8 +45,7 @@ if __name__ == '__main__':
                     anonymous=True,
                     log_level=rospy.ERROR)
 
-    clear_gym_params('ur3e_gym')
-    clear_gym_params('ur3e_force_control')
+    clear_gym_params('ur_gym')
 
     start_time = timeit.default_timer()
 
@@ -71,16 +70,16 @@ if __name__ == '__main__':
     p = utils.TextColors()
     p.error("GYM Environment:{} ".format(param_file))
 
-    ros_param_path = load_ros_params(rospackage_name="ur3e_rl",
+    ros_param_path = load_ros_params(rospackage_name="ur_rl",
                     rel_path_from_package_to_file="config",
                     yaml_file_name=param_file)
 
-    args.episode_max_steps = rospy.get_param("ur3e_gym/steps_per_episode", 200)
+    args.episode_max_steps = rospy.get_param("ur_gym/steps_per_episode", 200)
 
     env = load_environment(
-            rospy.get_param('ur3e_gym/env_id'),
+            rospy.get_param('ur_gym/env_id'),
             max_episode_steps=args.episode_max_steps)
-    actor_class = rospy.get_param("ur3e_gym/actor_class", "default")
+    actor_class = rospy.get_param("ur_gym/actor_class", "default")
 
     policy = SAC(
         state_shape=env.observation_space.shape,
@@ -94,7 +93,7 @@ if __name__ == '__main__':
         )
     trainer = Trainer(policy, env, args, test_env=None)
     outdir = trainer._output_dir
-    rospy.set_param('ur3e_gym/output_dir', outdir)
+    rospy.set_param('ur_gym/output_dir', outdir)
     log_ros_params(outdir)
     copyfile(ros_param_path, outdir + "/ros_gym_env_params.yaml")
     trainer()
