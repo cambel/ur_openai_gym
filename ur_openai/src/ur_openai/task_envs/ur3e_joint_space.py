@@ -1,10 +1,9 @@
 import datetime
-import rospy
 import numpy as np
+import rospy
 import sys
 
-from ur_control.constants import ROBOT_GAZEBO, ROBOT_UR_MODERN_DRIVER, ROBOT_UR_RTDE_DRIVER, \
-    FORCE_TORQUE_EXCEEDED
+from ur_control.constants import ROBOT_GAZEBO, ROBOT_UR_RTDE_DRIVER
 from ur_control import transformations, spalg
 import ur_openai.cost_utils as cost
 
@@ -49,13 +48,13 @@ class UR3eJointSpaceEnv(ur_env.UREnv):
         print("OBSERVATION SPACES TYPE", (self.observation_space))
 
     def get_robot_params(self):
-        prefix = "ur_gym"
+        prefix = "ur3e_gym"
         load_param_vars(self, prefix)
 
         driver_param = rospy.get_param(prefix + "/driver")
         self.driver = ROBOT_GAZEBO
         self.param_use_gazebo = False
-        elif driver_param == "rtde":
+        if driver_param == "rtde":
             self.driver = ROBOT_UR_RTDE_DRIVER
             self.param_use_gazebo = False
 
@@ -75,7 +74,7 @@ class UR3eJointSpaceEnv(ur_env.UREnv):
         Here we define what sensor data of our robots observations
         :return: observations
         """
-        joint_angles = self.ur_arm.joint_angles()
+        joint_angles = self.ur3e_arm.joint_angles()
         ee_points, ee_velocities = self.get_points_and_vels(joint_angles)
 
         obs = np.concatenate([
@@ -91,13 +90,13 @@ class UR3eJointSpaceEnv(ur_env.UREnv):
         and velocities from ROS."""
 
         if self._previous_joints is None:
-            self._previous_joints = self.ur_arm.joint_angles()
+            self._previous_joints = self.ur3e_arm.joint_angles()
 
         # Current position
-        ee_pos_now = self.ur_arm.end_effector(joint_angles=joint_angles)
+        ee_pos_now = self.ur3e_arm.end_effector(joint_angles=joint_angles)
 
         # Last position
-        ee_pos_last = self.ur_arm.end_effector(joint_angles=self._previous_joints)
+        ee_pos_last = self.ur3e_arm.end_effector(joint_angles=self._previous_joints)
         self._previous_joints = joint_angles  # update
 
         # Use the past position to get the present velocity.
@@ -126,29 +125,29 @@ class UR3eJointSpaceEnv(ur_env.UREnv):
         """Sets the Robot in its init pose
         """
         self._log()
-        cpose = self.ur_arm.end_effector()
+        cpose = self.ur3e_arm.end_effector()
         deltax = np.array([0., 0., 0.02, 0., 0., 0.])
         cpose = transformations.pose_from_angular_veloticy(cpose, deltax, dt=self.reset_time, ee_rotation=True)
-        self.ur_arm.set_target_pose(pose=cpose,
+        self.ur3e_arm.set_target_pose(pose=cpose,
                                       wait=True,
                                       t=self.reset_time)
         self._add_uncertainty_error()
         if self.random_initial_pose:
             self._randomize_initial_pose()
-            self.ur_arm.set_target_pose(pose=self.rand_init_cpose,
+            self.ur3e_arm.set_target_pose(pose=self.rand_init_cpose,
                                           wait=True,
                                           t=self.reset_time)
         else:
             qc = self.init_q
-            self.ur_arm.set_joint_positions(position=qc,
+            self.ur3e_arm.set_joint_positions(position=qc,
                                               wait=True,
                                               t=self.reset_time)
-        self.max_distance = spalg.translation_rotation_error(self.ur_arm.end_effector(), self.target_pos) * 1000.
+        self.max_distance = spalg.translation_rotation_error(self.ur3e_arm.end_effector(), self.target_pos) * 1000.
         self.max_dist = None
 
     def _randomize_initial_pose(self, override=False):
         if self.rand_init_cpose is None or self.rand_init_counter >= self.rand_init_interval or override:
-            self.rand_init_cpose = randomize_initial_pose(self.ur_arm.end_effector(self.init_q), self.workspace, self.reset_time)
+            self.rand_init_cpose = randomize_initial_pose(self.ur3e_arm.end_effector(self.init_q), self.workspace, self.reset_time)
             self.rand_init_counter = 0
         self.rand_init_counter += 1
 
@@ -177,7 +176,7 @@ class UR3eJointSpaceEnv(ur_env.UREnv):
     def _log(self):
         if self.obs_logfile is None:
             try:
-                self.obs_logfile = rospy.get_param("ur_gym/output_dir") + "/state_" + \
+                self.obs_logfile = rospy.get_param("ur3e_gym/output_dir") + "/state_" + \
                     datetime.datetime.now().strftime('%Y%m%dT%H%M%S') + '.npy'
                 print("obs_logfile", self.obs_logfile)
             except Exception:
@@ -206,16 +205,12 @@ class UR3eJointSpaceEnv(ur_env.UREnv):
         if self.target_pose_uncertain_per_step:
             self._add_uncertainty_error()
 
-        true_error = spalg.translation_rotation_error(self.true_target_pose, self.ur_arm.end_effector())
+        true_error = spalg.translation_rotation_error(self.true_target_pose, self.ur3e_arm.end_effector())
         true_error[:3] *= 1000.0
         true_error[3:] = np.rad2deg(true_error[3:])
         success = np.linalg.norm(true_error[:3], axis=-1) < self.distance_threshold
         self._log_message = "Final distance: " + str(np.round(true_error, 3)) + (' success!' if success else '')
         return success
-
-    def goal_distance(self, goal_a, goal_b):
-        assert goal_a.shape == goal_b.shape
-        return np.linalg.norm(goal_a - goal_b, axis=-1)
 
     def _init_env_variables(self):
         self.step_count = 0
@@ -232,7 +227,7 @@ class UR3eJointSpaceEnv(ur_env.UREnv):
         actions = np.copy(action)
 
         # Let's assume that the max action per joint is 1 deg per step
-        q_cmd = self.ur_arm.joint_angles() + np.deg2rad(actions) / 10.
+        q_cmd = self.ur3e_arm.joint_angles() + np.deg2rad(actions) / 10.
 
-        self.ur_arm.set_joint_positions_flex(q_cmd, t=self.agent_control_dt)
+        self.ur3e_arm.set_joint_positions_flex(q_cmd, t=self.agent_control_dt)
         self.rate.sleep()

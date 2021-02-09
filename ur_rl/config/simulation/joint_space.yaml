@@ -1,4 +1,4 @@
-ur3e_gym: #namespace
+ur_gym: #namespace
     # General Agent parameters
     env_id: "UR3eJointSpaceEnv-v0"
     driver: "gazebo" # or "robot" or "old_driver"
