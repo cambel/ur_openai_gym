@@ -1,0 +1,1 @@
+/root/ros_ws/src/ur_openai_gym/ur_rl/scripts/tf2rl_sac.py -e 0

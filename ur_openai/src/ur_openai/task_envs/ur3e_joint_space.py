@@ -3,7 +3,6 @@ import numpy as np
 import rospy
 import sys
 
-from ur_control.constants import ROBOT_GAZEBO, ROBOT_UR_RTDE_DRIVER
 from ur_control import transformations, spalg
 import ur_openai.cost_utils as cost
 
@@ -52,10 +51,8 @@ class UR3eJointSpaceEnv(ur_env.UREnv):
         load_param_vars(self, prefix)
 
         driver_param = rospy.get_param(prefix + "/driver")
-        self.driver = ROBOT_GAZEBO
         self.param_use_gazebo = False
         if driver_param == "rtde":
-            self.driver = ROBOT_UR_RTDE_DRIVER
             self.param_use_gazebo = False
 
         self.relative_to_ee = rospy.get_param(prefix + "/relative_to_ee", False)

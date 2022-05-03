@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>ur_rl</name>
-  <version>0.0.0</version>
+  <version>0.1.0</version>
   <description>The ur_rl package</description>
 
   <maintainer email="beltran@hlab.sys.es.osaka-u.ac.jp">Cristian Beltran</maintainer>

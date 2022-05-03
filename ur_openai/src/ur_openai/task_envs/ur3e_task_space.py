@@ -4,7 +4,6 @@ import numpy as np
 
 from gym import spaces
 
-from ur_control.constants import ROBOT_GAZEBO, ROBOT_UR_RTDE_DRIVER
 from ur_control import transformations, spalg
 
 import ur_openai.cost_utils as cost
@@ -52,10 +51,8 @@ class UR3eTaskSpaceEnv(ur_env.UREnv):
         load_param_vars(self, prefix)
 
         driver_param = rospy.get_param(prefix + "/driver")
-        self.driver = ROBOT_GAZEBO
         self.param_use_gazebo = False
         if driver_param == "robot":
-            self.driver = ROBOT_UR_RTDE_DRIVER
             self.param_use_gazebo = False
 
         self.relative_to_ee = rospy.get_param(prefix + "/relative_to_ee", False)
@@ -86,8 +83,8 @@ class UR3eTaskSpaceEnv(ur_env.UREnv):
 
     def get_points_and_vels(self, joint_angles):
         """
-        Helper function that gets the cartesian positions
-        and velocities from ROS."""
+        and velocities of the end effector with respect to the target pose
+        """
 
         if self._previous_joints is None:
             self._previous_joints = self.ur3e_arm.joint_angles()
@@ -105,19 +102,10 @@ class UR3eTaskSpaceEnv(ur_env.UREnv):
             ee_pos_now[3:], ee_pos_last[3:], self.agent_control_dt)
         velocity = np.concatenate((linear_velocity, angular_velocity))
 
-        # Shift the present poistion by the End Effector target.
+        # Shift the present position by the End Effector target.
         # Since we subtract the target point from the current position, the optimal
         # value for this will be 0.
         error = spalg.translation_rotation_error(self.target_pos, ee_pos_now)
-
-        # scale error error, for more precise motion
-        # (numerical error with small numbers?)
-        error *= [1000, 1000, 1000, 1000., 1000., 1000.]
-
-        # Extract only positions of interest
-        if self.tgt_pose_indices is not None:
-            error = np.array([error[i] for i in self.tgt_pose_indices])
-            velocity = np.array([velocity[i] for i in self.tgt_pose_indices])
 
         return error, velocity
 
@@ -127,7 +115,8 @@ class UR3eTaskSpaceEnv(ur_env.UREnv):
         self._log()
         cpose = self.ur3e_arm.end_effector()
         deltax = np.array([0., 0., 0.02, 0., 0., 0.])
-        cpose = transformations.pose_from_angular_veloticy(cpose, deltax, dt=self.reset_time, ee_rotation=True)
+        cpose = transformations.pose_euler_to_quaternion(
+            self.ur3e_arm.end_effector(), deltax, ee_rotation=True)
         self.ur3e_arm.set_target_pose(pose=cpose,
                                       wait=True,
                                       t=self.reset_time)

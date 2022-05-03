@@ -5,7 +5,7 @@ from .gazebo_connection import GazeboConnection, RobotConnection
 from .controllers_connection import ControllersConnection
 from ur_openai.msg import RLExperimentInfo
 from std_msgs.msg import Bool
-import ur_control.log as utils
+import ur_openai.log as utils
 color_log = utils.TextColors()
 
 # https://github.com/openai/gym/blob/master/gym/core.py

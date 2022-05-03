@@ -7,6 +7,7 @@ ARG UBUNTU_VERSION=18.04
 FROM tensorflow/tensorflow:latest-gpu-py3
 LABEL maintainer Cristian Beltran "beltran@hlab.sys.es.osaka-u.ac.jp"
 
+RUN apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/3bf863cc.pub
 #### Use an official ROS runtime as a parent image
 # setup timezone
 RUN echo 'Etc/UTC' > /etc/timezone && \
@@ -94,10 +95,10 @@ RUN apt-get update && apt-get install -q -y \
     libgazebo9-dev \
     && rm -rf /var/lib/apt/lists/*
 
-ADD orocos_kinematics_dynamics.tar.xz /root/
+ADD ./docker/orocos_kinematics_dynamics.tar.xz /root/
 
 # Install SIP 4.19.8
-ADD sip-4.19.8.tar.gz /root/
+ADD ./docker/sip-4.19.8.tar.gz /root/
 
 RUN /bin/bash -c "cd ~/ \
                && cd sip-4.19.8 \
@@ -116,7 +117,7 @@ RUN /bin/bash -c "cd ~/orocos_kinematics_dynamics/python_orocos_kdl \
                && cmake -DCMAKE_BUILD_TYPE=Release -DPYTHON_INCLUDE_DIR=$(python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")  -DPYTHON_LIBRARY=$(python -c "import distutils.sysconfig as sysconfig; print(sysconfig.get_config_var('LIBDIR'))") -DPYTHON_VERSION=3 .. \
                && make -j4"
 
-COPY bashrc /etc/bash.bashrc
+COPY ./docker/bashrc /etc/bash.bashrc
 RUN chmod a+rwx /etc/bash.bashrc
 
 ### Ros Workspace ###
@@ -130,6 +131,7 @@ RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/setup.bash \
 RUN /bin/bash -c "cd ~/ros_ws/src \
                && git clone https://bitbucket.org/traclabs/trac_ik.git \
                && git clone https://github.com/cambel/ur3.git ros_ur3 \
+               && git clone https://github.com/cambel/ur_openai_gym.git \
                && git clone https://github.com/UniversalRobots/Universal_Robots_ROS_Driver.git universal_robots_ros_driver \
                && git clone -b calibration_devel https://github.com/fmauch/universal_robot.git universal_robot"
 
@@ -175,21 +177,6 @@ RUN /bin/bash -c "cd ~/ \
 # fix for sip
 RUN rm /usr/lib/python3/dist-packages/sip.cpython-36m-x86_64-linux-gnu.so
 
-RUN pip install xmltodict imageio IPython
-
-## Intel Realsense ROS packages
-RUN apt-get update && apt-get install -y ros-$ROS_DISTRO-realsense2-camera ros-$ROS_DISTRO-realsense2-description \
-    && rm -rf /var/lib/apt/lists/*
-
-##### Easy hand-eye calibration libs
-RUN apt-get update && apt-get install -y \
-    ros-$ROS_DISTRO-apriltag-ros \
-    ros-$ROS_DISTRO-handeye \
-    ros-$ROS_DISTRO-rqt-joint-trajectory-controller \
-    ros-$ROS_DISTRO-rqt-tf-tree \
-    ros-$ROS_DISTRO-rqt-multiplot \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN apt-get update && apt-get install -y \
     ros-melodic-moveit \
     ros-melodic-moveit-runtime \
@@ -197,49 +184,26 @@ RUN apt-get update && apt-get install -y \
     ros-melodic-moveit-resources \
     && rm -rf /var/lib/apt/lists/*
 
+RUN pip install Cython cpprb
+
 # fix problem with tf2rl
 RUN apt-get -qq update && \
     apt-get -y --force-yes install \
     software-properties-common
-    
-RUN add-apt-repository ppa:ubuntu-toolchain-r/test
-
-# RUN (for deb in deb deb-src; do echo "$deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"; done |  tee /etc/apt/sources.list.d/llvm-toolchain.list)
-# RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key| apt-key add -
-
-RUN bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
-
-RUN apt-get update && apt-get install -q -y gcc-9 g++-9 \
-    && add-apt-repository ppa:ubuntu-toolchain-r/test \
-    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9 --slave /usr/bin/gcov gcov /usr/bin/gcov-9 \
-    && rm -rf /var/lib/apt/lists/*
 
 # tf2rl
 RUN /bin/bash -c "cd ~/pylibs \
-               && git clone https://github.com/keiohta/tf2rl.git \
-               && cd tf2rl && pip install -e ."
-
-# Fix the MoveIt Rviz controllers *use ur3e_load_moveit_planner.launch on ur3_gripper_moveit_config pkg*
-ADD ur3e_move_group.launch /root/ros_ws/src/universal_robot/ur3_e_moveit_config/launch/move_group.launch
-ADD ur3_e_moveit_execution.launch /root/ros_ws/src/universal_robot/ur3_e_moveit_config/launch/ur3_e_moveit_planning_execution.launch
+    && git clone -b dev https://github.com/cambel/tf2rl.git \
+    && cd tf2rl && pip install -e ."
 
 # Workaround for python3 + tf2
 RUN pip install --extra-index-url https://rospypi.github.io/simple/ tf2_ros --ignore-installed
 RUN pip install --upgrade pip
 
-RUN /bin/bash -c "cd ~/ros_ws/src/robotiq \
-                  && git pull \
-                  && cd ../ros_ur3 \
-                  && git pull"
+RUN mkdir -p ~/.gazebo
 
-RUN /bin/bash -c "cd ~/ros_ws/src \
-               && git clone https://github.com/cambel/ur_openai_gym.git"
-
-# Compiling ros workspace
-RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/setup.bash \
-               && cd ~/ros_ws/ \
-               && rm -rf build \
-               && catkin build -DPYTHON_EXECUTABLE=/usr/bin/python3 -DPYTHON_LIBRARY=/usr/lib/x86_64-linux-gnu/libpython3.6m.so -DPYTHON_VERSION=3"
+RUN pip install netifaces
+RUN pip install gym[atari]==0.15.7
 
 ENV NVIDIA_VISIBLE_DEVICES ${NVIDIA_VISIBLE_DEVICES:-all}
 ENV NVIDIA_DRIVER_CAPABILITIES ${NVIDIA_DRIVER_CAPABILITIES:+$NVIDIA_DRIVER_CAPABILITIES,}graphics

@@ -1,4 +1,3 @@
-from ur_control.constants import ROBOT_GAZEBO
 import rospy
 import numpy as np
 import datetime

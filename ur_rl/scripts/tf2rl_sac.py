@@ -24,9 +24,8 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == '__main__':
-
     parser = Trainer.get_argument()
-    parser.add_argument('-e', '--env-id', type=int, help='environment ID', default=None)
+    parser.add_argument('-e', '--env_id', type=int, help='environment ID', default=None)
     parser.set_defaults(batch_size=2048)
     parser.set_defaults(n_warmup=0) # still don't know what it this for
     parser.set_defaults(max_steps=10000) # 10000 for training 200 for evaluation
