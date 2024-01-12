@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 2.8.3)
-project(ur_openai)
+cmake_minimum_required(VERSION 3.1.3)
+project(ur_gym)
 
 find_package(catkin REQUIRED COMPONENTS
   rospy

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ################################################################################
+export DOCKER_RUNTIME=nvidia
 
 # Set the Docker container name from a project name (first argument).
 # If no argument is given, use the current user name as the project name.
@@ -14,9 +15,7 @@ echo "$0: CONTAINER=${CONTAINER}"
 
 # Run the Docker container in the background.
 # Any changes made to './docker/docker-compose.yml' will recreate and overwrite the container.
-docker-compose -p ${PROJECT} -f ./docker-compose.yml build
-
-docker-compose -p ${PROJECT} -f ./docker-compose.yml up -d
+docker-compose -p ${PROJECT} -f ./docker/docker-compose.yml up -d
 
 ################################################################################
 

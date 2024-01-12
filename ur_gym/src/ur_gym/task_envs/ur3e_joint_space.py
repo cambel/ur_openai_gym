@@ -4,12 +4,12 @@ import rospy
 import sys
 
 from ur_control import transformations, spalg
-import ur_openai.cost_utils as cost
+import ur_gym.cost_utils as cost
 
 from gym import spaces
 
-from ur_openai.robot_envs import ur_env
-from ur_openai.robot_envs.utils import load_param_vars, save_log, randomize_initial_pose
+from ur_gym.robot_envs import ur_env
+from ur_gym.robot_envs.utils import load_param_vars, save_log, randomize_initial_pose
 
 
 class UR3eJointSpaceEnv(ur_env.UREnv):

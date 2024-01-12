@@ -20,23 +20,23 @@ def register_environment(task_env, max_episode_steps=10000):
 
         register(
             id=task_env,
-            entry_point='ur_openai.task_envs.ur3e_task_space:UR3eTaskSpaceEnv',
+            entry_point='ur_gym.task_envs.ur3e_task_space:UR3eTaskSpaceEnv',
             max_episode_steps=max_episode_steps,
         )
 
         # import our training environment
-        from ur_openai.task_envs import ur3e_task_space
+        from ur_gym.task_envs import ur3e_task_space
 
     elif task_env == 'UR3eJointSpaceEnv-v0':
 
         register(
             id=task_env,
-            entry_point='ur_openai.task_envs.ur3e_joint_space:UR3eJointSpaceEnv',
+            entry_point='ur_gym.task_envs.ur3e_joint_space:UR3eJointSpaceEnv',
             max_episode_steps=max_episode_steps,
         )
 
         # import our training environment
-        from ur_openai.task_envs import ur3e_joint_space
+        from ur_gym.task_envs import ur3e_joint_space
 
     # Add here your Task Envs to be registered
     else:

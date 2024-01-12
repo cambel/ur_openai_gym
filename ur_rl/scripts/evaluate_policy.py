@@ -9,7 +9,7 @@ import numpy as np
 import tensorflow as tf
 
 import rospy
-from ur_openai.common import load_environment, log_ros_params, clear_gym_params, load_ros_params
+from ur_gym.common import load_environment, log_ros_params, clear_gym_params, load_ros_params
 from tf2rl.algos.sac import SAC
 import timeit
 

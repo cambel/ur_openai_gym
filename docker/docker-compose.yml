@@ -7,6 +7,7 @@ services:
     hostname: localhost
     runtime: ${DOCKER_RUNTIME}
     privileged: true
+    working_dir: /root/
     environment:
       # Pass host user information.
       - HOST_USER=${USER}
@@ -22,7 +23,7 @@ services:
       - DOCKER_RUNTIME=${DOCKER_RUNTIME}
       # Needs to be explicitly define
       - ROS_HOSTNAME=localhost
-    image: ros_ur_gym:melodic
+    image: ros_ur_gym:noetic
     tty: true
     build:
       context: ../

@@ -2,7 +2,7 @@
 import argparse
 import rospy
 import numpy as np
-from ur_openai.common import load_environment, clear_gym_params, load_ros_params
+from ur_gym.common import load_environment, clear_gym_params, load_ros_params
 np.set_printoptions(suppress=True)
 np.set_printoptions(linewidth=np.inf)
 import ur_control.utils as utils

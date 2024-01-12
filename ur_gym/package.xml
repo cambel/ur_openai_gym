@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>ur_openai</name>
-  <version>1.0.0</version>
-  <description>The ur_openai package</description>
+  <name>ur_gym</name>
+  <version>0.1.0</version>
+  <description>The ur_gym package</description>
   <maintainer email="beltran@hlab.sys.es.osaka-u.ac.jp">Cristian Beltran</maintainer>
   <license>MIT</license>
 

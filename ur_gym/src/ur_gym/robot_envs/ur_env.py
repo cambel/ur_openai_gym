@@ -22,13 +22,13 @@
 #
 # Author: Cristian C Beltran-Hernandez
 
-from ur_openai import robot_env
+from ur_gym import robot_env
 import rospy
 import numpy as np
 from numpy.random import RandomState
 
 from ur_control.arm import Arm
-from ur_openai import robot_env
+from ur_gym import robot_env
 
 class UREnv(robot_env.RobotGazeboEnv):
     """Superclass for all Robot environments.

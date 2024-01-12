@@ -6,9 +6,9 @@ from gym import spaces
 
 from ur_control import transformations, spalg
 
-import ur_openai.cost_utils as cost
-from ur_openai.robot_envs import ur_env
-from ur_openai.robot_envs.utils import load_param_vars, save_log, randomize_initial_pose, apply_workspace_contraints
+import ur_gym.cost_utils as cost
+from ur_gym.robot_envs import ur_env
+from ur_gym.robot_envs.utils import load_param_vars, save_log, randomize_initial_pose, apply_workspace_contraints
 
 
 class UR3eTaskSpaceEnv(ur_env.UREnv):

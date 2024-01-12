@@ -1,18 +1,32 @@
 import rospy
 import gym
 from gym.utils import seeding
-from .gazebo_connection import GazeboConnection
+from .gazebo_connection import GazeboConnection, RobotConnection
 from .controllers_connection import ControllersConnection
-from ur_openai.msg import RLExperimentInfo
+from ur_gym.msg import RLExperimentInfo
+from std_msgs.msg import Bool
+import ur_gym.log as utils
+color_log = utils.TextColors()
+
+# https://github.com/openai/gym/blob/master/gym/core.py
 
 
-class RobotGazeboEnv(gym.GoalEnv):
-    def __init__(self, robot_name_space, controllers_list, reset_controls):
+class RobotGazeboEnv(gym.Env):
+    def __init__(self,
+                 robot_name_space,
+                 controllers_list,
+                 reset_controls,
+                 use_gazebo=False,
+                 **kwargs):
 
         # To reset Simulations
-        print("Entered Gazebo Env")
-        self.gazebo = GazeboConnection(start_init_physics_parameters=False,
-                                       reset_world_or_sim="WORLD")
+        rospy.logdebug("START init RobotGazeboEnv")
+        if use_gazebo:
+            self.robot_connection = GazeboConnection(**kwargs)
+        else:
+            self.robot_connection = RobotConnection()
+            self.subs_pause = rospy.Subscriber('ur3/pause', Bool, self.pause_callback, queue_size=1)
+
         self.controllers_object = ControllersConnection(
             namespace=robot_name_space, controllers_list=controllers_list)
         self.reset_controls = reset_controls
@@ -20,9 +34,18 @@ class RobotGazeboEnv(gym.GoalEnv):
 
         # Set up ROS related variables
         self.episode_num = 0
+        self.step_count = 0
+        self.cumulated_episode_reward = 0
+        self.pause = False
         self.reward_pub = rospy.Publisher('/openai/reward',
                                           RLExperimentInfo,
                                           queue_size=1)
+        self._log_message = None
+        rospy.logdebug("END init RobotGazeboEnv")
+
+    def pause_callback(self, msg):
+        if msg.data is True:
+            self.pause = True
 
     # Env methods
     def seed(self, seed=None):
@@ -41,30 +64,30 @@ class RobotGazeboEnv(gym.GoalEnv):
         Here we should convert the action num to movement action, execute the action in the
         simulation and get the observations result of performing that action.
         """
-        print("Entered step")
-        print("Unpause sim")
-        self.gazebo.unpause()
-        print("Set action")
-        print("Action:")
-        print(action)
+        if self.pause:
+            self._pause_env()
+            self.pause = False
+
+        self.robot_connection.unpause()
         self._set_action(action)
-        print("Get Obs")
+        self.robot_connection.pause()
         obs = self._get_obs()
-        print("Is done")
         done = self._is_done(obs)
         info = {}
         reward = self._compute_reward(obs, done)
-        self._publish_reward_topic(reward, self.episode_num)
+        self.cumulated_episode_reward += reward
+
+        self.step_count += 1
 
         return obs, reward, done, info
 
     def reset(self):
         rospy.logdebug("Reseting RobotGazeboEnvironment")
-        print("Entered reset")
-        self._reset_sim()
-        self._init_env_variables()
         self._update_episode()
+        self._init_env_variables()
+        self._reset_sim()
         obs = self._get_obs()
+        rospy.logdebug("END Reseting RobotGazeboEnvironment")
         return obs
 
     def close(self):
@@ -78,10 +101,24 @@ class RobotGazeboEnv(gym.GoalEnv):
 
     def _update_episode(self):
         """
-        Increases the episode number by one
+        Publishes the cumulated reward of the episode and
+        increases the episode number by one.
         :return:
         """
+        if self._log_message is not None:
+            color_log.ok("\n>> End of Episode = %s, Reward= %s, steps=%s" %
+                         (self.episode_num, self.cumulated_episode_reward, self.step_count))
+            color_log.warning(self._log_message)
+
+        rospy.logdebug("PUBLISHING REWARD...")
+        self._publish_reward_topic(self.cumulated_episode_reward,
+                                   self.episode_num)
+        rospy.logdebug("PUBLISHING REWARD...DONE=" +
+                       str(self.cumulated_episode_reward) + ",EP=" +
+                       str(self.episode_num))
+
         self.episode_num += 1
+        self.cumulated_episode_reward = 0
 
     def _publish_reward_topic(self, reward, episode_number=1):
         """
@@ -102,27 +139,32 @@ class RobotGazeboEnv(gym.GoalEnv):
     def _reset_sim(self):
         """Resets a simulation
         """
+        rospy.logdebug("RESET SIM START")
         if self.reset_controls:
-            self.gazebo.unpause()
+            rospy.logdebug("RESET CONTROLLERS")
+            self.robot_connection.unpause()
             self.controllers_object.reset_controllers()
             self._check_all_systems_ready()
             self._set_init_pose()
-            self.gazebo.pause()
-            self.gazebo.reset()
-            self.gazebo.unpause()
+            self.robot_connection.pause()
+            self.robot_connection.reset()
+            self.robot_connection.unpause()
             self.controllers_object.reset_controllers()
             self._check_all_systems_ready()
-            self.gazebo.pause()
+            self.robot_connection.pause()
 
         else:
-            self.gazebo.unpause()
-
+            rospy.logdebug("DONT RESET CONTROLLERS")
+            self.robot_connection.unpause()
             self._check_all_systems_ready()
             self._set_init_pose()
-            self.gazebo.reset()
-
+            self.robot_connection.pause()
+            self.robot_connection.reset()
+            self.robot_connection.unpause()
             self._check_all_systems_ready()
+            self.robot_connection.pause()
 
+        rospy.logdebug("RESET SIM END")
         return True
 
     def _set_init_pose(self):
@@ -167,4 +209,8 @@ class RobotGazeboEnv(gym.GoalEnv):
         """Initial configuration of the environment. Can be used to configure initial state
         and extract information from the simulation.
         """
+        raise NotImplementedError()
+
+    def _pause_env(self):
+        """Perform any validation/checks before/after pausing environment"""
         raise NotImplementedError()

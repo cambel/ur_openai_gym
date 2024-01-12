@@ -8,14 +8,14 @@ project(ur_rl)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  ur_openai
+  ur_gym
   rospy
 )
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES ur_rl
-#  CATKIN_DEPENDS ur_openai rospy
+#  CATKIN_DEPENDS ur_gym rospy
 #  DEPENDS system_lib
 )
 

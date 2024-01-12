@@ -12,7 +12,7 @@ from tf2rl.experiments.cb_trainer import Trainer
 
 import ur_control.utils as utils
 
-from ur_openai.common import load_environment, log_ros_params, clear_gym_params, load_ros_params
+from ur_gym.common import load_environment, log_ros_params, clear_gym_params, load_ros_params
 import numpy as np
 np.set_printoptions(suppress=True)
 
